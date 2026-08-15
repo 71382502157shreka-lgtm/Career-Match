@@ -19,7 +19,7 @@ from app.models.job import JobPosting
 from app.models.application import Application
 from app.services.ai_matcher import ai_matcher
 from app.services.resume_parser import extract_text_from_pdf, extract_skills, skills_to_csv
-from app.core.security import get_password_hash, verify_password
+from app.core.security import hash_password, get_password_hash, verify_password
 
 # Initialize Database Schema
 Base.metadata.create_all(bind=engine)
@@ -344,6 +344,11 @@ elif nav_option == "⚡ AI Sandbox Playground":
 elif nav_option == "📄 My Profile & Resume" and st.session_state["user"]:
     db = get_db()
     current_user = db.query(User).filter(User.id == st.session_state["user"]["id"]).first()
+    if not current_user:
+        st.error("User session invalid or user record not found. Please sign in again.")
+        st.session_state["user"] = None
+        db.close()
+        st.rerun()
 
     st.markdown('<h1 class="header-title">📄 My Resume & Profile</h1>', unsafe_allow_html=True)
 
@@ -429,10 +434,15 @@ elif nav_option == "📄 My Profile & Resume" and st.session_state["user"]:
 elif nav_option == "🎯 AI Job Recommendations" and st.session_state["user"]:
     db = get_db()
     current_user = db.query(User).filter(User.id == st.session_state["user"]["id"]).first()
+    if not current_user:
+        st.error("User session invalid or user record not found. Please sign in again.")
+        st.session_state["user"] = None
+        db.close()
+        st.rerun()
 
     st.markdown('<h1 class="header-title">🎯 AI Recommended Jobs</h1>', unsafe_allow_html=True)
     
-    if not current_user.skills and not current_user.resume_text:
+    if not (current_user.skills or "").strip() and not (current_user.resume_text or "").strip():
         st.warning("⚠️ Your profile skills and resume are currently empty. Please update your profile or upload a resume to get accurate AI job recommendations!")
     
     # Filter options
@@ -540,6 +550,13 @@ elif nav_option == "🎯 AI Job Recommendations" and st.session_state["user"]:
 elif nav_option == "📋 My Applications" and st.session_state["user"]:
     db = get_db()
     current_user_id = st.session_state["user"]["id"]
+    current_user = db.query(User).filter(User.id == current_user_id).first()
+    if not current_user:
+        st.error("User session invalid or user record not found. Please sign in again.")
+        st.session_state["user"] = None
+        db.close()
+        st.rerun()
+
     applications = db.query(Application).filter(Application.candidate_id == current_user_id).order_by(Application.applied_at.desc()).all()
 
     st.markdown('<h1 class="header-title">📋 My Job Applications</h1>', unsafe_allow_html=True)
@@ -549,6 +566,8 @@ elif nav_option == "📋 My Applications" and st.session_state["user"]:
     else:
         for app in applications:
             job = app.job
+            if not job:
+                continue
             st.markdown('<div class="css-card">', unsafe_allow_html=True)
             col1, col2, col3 = st.columns([3, 1, 1])
             with col1:
@@ -567,6 +586,14 @@ elif nav_option == "📋 My Applications" and st.session_state["user"]:
 # PAGE: RECRUITER - POST NEW JOB
 # -----------------------------------------------------------------------------
 elif nav_option == "➕ Post New Job" and st.session_state["user"]:
+    db = get_db()
+    current_user = db.query(User).filter(User.id == st.session_state["user"]["id"]).first()
+    if not current_user:
+        st.error("User session invalid or user record not found. Please sign in again.")
+        st.session_state["user"] = None
+        db.close()
+        st.rerun()
+
     st.markdown('<h1 class="header-title">➕ Post a New Job</h1>', unsafe_allow_html=True)
 
     with st.form("create_job_form"):
@@ -600,7 +627,6 @@ elif nav_option == "➕ Post New Job" and st.session_state["user"]:
             if not j_title or not j_company or not j_skills or not j_desc:
                 st.error("Please fill in all required fields (*).")
             else:
-                db = get_db()
                 new_job = JobPosting(
                     title=j_title.strip(),
                     company=j_company.strip(),
@@ -613,12 +639,13 @@ elif nav_option == "➕ Post New Job" and st.session_state["user"]:
                     salary_max=j_sal_max,
                     description=j_desc.strip(),
                     linkedin_url=j_url.strip(),
-                    posted_by=st.session_state["user"]["id"]
+                    posted_by=current_user.id
                 )
                 db.add(new_job)
                 db.commit()
                 st.success(f"Job posting '{j_title}' published successfully!")
-                db.close()
+
+    db.close()
 
 # -----------------------------------------------------------------------------
 # PAGE: RECRUITER - MANAGE LISTINGS
@@ -626,6 +653,13 @@ elif nav_option == "➕ Post New Job" and st.session_state["user"]:
 elif nav_option == "💼 Manage Job Listings" and st.session_state["user"]:
     db = get_db()
     recruiter_id = st.session_state["user"]["id"]
+    current_user = db.query(User).filter(User.id == recruiter_id).first()
+    if not current_user:
+        st.error("User session invalid or user record not found. Please sign in again.")
+        st.session_state["user"] = None
+        db.close()
+        st.rerun()
+
     my_jobs = db.query(JobPosting).filter(JobPosting.posted_by == recruiter_id).order_by(JobPosting.created_at.desc()).all()
 
     st.markdown('<h1 class="header-title">💼 Manage Posted Jobs</h1>', unsafe_allow_html=True)
@@ -659,6 +693,13 @@ elif nav_option == "💼 Manage Job Listings" and st.session_state["user"]:
 elif nav_option == "👥 Applicant Ranking" and st.session_state["user"]:
     db = get_db()
     recruiter_id = st.session_state["user"]["id"]
+    current_user = db.query(User).filter(User.id == recruiter_id).first()
+    if not current_user:
+        st.error("User session invalid or user record not found. Please sign in again.")
+        st.session_state["user"] = None
+        db.close()
+        st.rerun()
+
     my_jobs = db.query(JobPosting).filter(JobPosting.posted_by == recruiter_id).all()
 
     st.markdown('<h1 class="header-title">👥 Candidate Applicant Ranking</h1>', unsafe_allow_html=True)
@@ -678,14 +719,18 @@ elif nav_option == "👥 Applicant Ranking" and st.session_state["user"]:
         if not applications:
             st.info("No candidates have applied to this position yet.")
         else:
-            candidates = [app.candidate for app in applications]
+            candidates = [app.candidate for app in applications if app.candidate is not None]
             # Rank candidates using AI Job Matcher
             ranked_candidate_pairs = ai_matcher.rank_candidates_for_job(job, candidates)
 
             st.write(f"Showing **{len(ranked_candidate_pairs)}** applicants ranked by AI Match Score:")
 
             for candidate, score in ranked_candidate_pairs:
-                app_record = next(a for a in applications if a.candidate_id == candidate.id)
+                if not candidate:
+                    continue
+                app_record = next((a for a in applications if a.candidate_id == candidate.id), None)
+                if not app_record:
+                    continue
 
                 st.markdown('<div class="css-card">', unsafe_allow_html=True)
                 col1, col2, col3 = st.columns([3, 1, 1.2])
