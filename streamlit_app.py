@@ -4,10 +4,14 @@ import tempfile
 import streamlit as st
 from datetime import datetime
 
-# Ensure app package is importable
+# Ensure app package is importable across different root/deployment directory structures
 current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+parent_dir = os.path.dirname(current_dir)
+root_dir = os.path.dirname(parent_dir)
+
+for path in [current_dir, parent_dir, root_dir]:
+    if os.path.exists(os.path.join(path, "app")) and path not in sys.path:
+        sys.path.insert(0, path)
 
 from app.core.database import SessionLocal, Base, engine
 from app.models.user import User
